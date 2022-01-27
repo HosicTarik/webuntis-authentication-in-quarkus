@@ -25,7 +25,7 @@ public class WebUntisService {
 
             if (session != null) {
                 System.out.println("Login successfull");
-
+                
                 session.logout();
             } else {
                 System.out.println("Login failed");
