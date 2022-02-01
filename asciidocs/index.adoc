@@ -195,10 +195,10 @@ public class WebUntisResource {
 .Auf _localhost:8080_ den Usernamen und das Passwort eingeben
 [%collapsible%open]
 ====
-image::image-2022-02-01-12-52-46-260.png[width=600]
+image::img.png[width=600]
 ====
 
-Stimmen die Eingabedaten werden ein paar Daten des Users angezeigt:
+Stimmen die Eingabedaten werden ein paar Daten des Users zurückgegeben:
 
 [source, json]
 ----
