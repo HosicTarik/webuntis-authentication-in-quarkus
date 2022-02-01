@@ -15,7 +15,7 @@ public class WebUntisService {
     @ConfigProperty(name = "auth.untis.server")
     String serverName;
 
-    public void authenticateUser(String userName, String password) {
+    public String authenticateUser(String userName, String password) {
         try {
             Session session = Session.login(
                     userName,
@@ -25,13 +25,19 @@ public class WebUntisService {
 
             if (session != null) {
                 System.out.println("Login successfull");
-                
+
+                var result = session.getTeachers().searchByName(userName);
+
                 session.logout();
+
+                return result.stream().findFirst().get().toString();
             } else {
                 System.out.println("Login failed");
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        return "Unknown error";
     }
 }

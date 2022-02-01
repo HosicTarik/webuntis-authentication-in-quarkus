@@ -17,9 +17,7 @@ public class WebUntisResource {
     @Path("auth")
     @Produces(MediaType.TEXT_PLAIN)
     public Response authenticateUser(@FormParam("userName") String userName, @FormParam("password") String password) {
-        webUntisService.authenticateUser(userName, password);
-
-        return Response.ok().build();
+        return Response.ok(webUntisService.authenticateUser(userName, password)).build();
     }
 
 

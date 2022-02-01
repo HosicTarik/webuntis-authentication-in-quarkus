@@ -1,0 +1,212 @@
+= WebUntis authentication in Quarkus
+Birklbauer Jonas, Bojer Nico, Gahleitner Lorenz, Hosic Tarik
+1.0.0, yyyy-mm-dd: Some notes
+ifndef::imagesdir[:imagesdir: images]
+//:toc-placement!:  // prevents the generation of the doc at this position, so it can be printed afterwards
+:sourcedir: ../src/main/java
+:icons: font
+:sectnums:    // Nummerierung der Überschriften / section numbering
+:toc: left
+
+//Need this blank line after ifdef, don't know why...
+ifdef::backend-html5[]
+
+// print the toc here (not at the default position)
+//toc::[]
+
+== Vorraussetzungen
+
+== Projekt erstellen
+
+Zunächst wird das Quarkus Projekt erstellt:
+
+[source,shell script]
+----
+mvn io.quarkus.platform:quarkus-maven-plugin:2.6.3.Final:create \
+    -DprojectGroupId=at.htl \
+    -DprojectArtifactId=webuntis-authentication-in-quarkus \
+    -DclassName="at.htl.boundary.WebUntisResource" \
+    -Dpath="/api/untis" \
+    -Dextensions="resteasy,resteasy-jsonb"
+----
+
+== Untis4J
+
+https://github.com/ByteDream/untis4j[Untis4J] ist eine Java Library, welche verschiedene Methoden anbietet, mit welcher es möglich ist mit der https://api.webuntis.dk/api/docs[Webuntis API] zu kommunizieren.
+
+Um die Library zu verwenden wird zunächst die .jar-Datei dem Projekt hinzugefügt.
+
+1. Zuerst ladet man sich die https://github.com/ByteDream/untis4j/releases[.jar-Datei] in einen _lib/_ Ordner im Root-Verzeichnis des Projektes runter:
++
+[source,shell script]
+----
+wget https://github.com/ByteDream/untis4j/releases/download/v1.3.0/untis4j-1.3.0-withDependencies.jar.jar -P ./lib
+----
+2. Als Nächstes wird der Pfad der Library in die POM eingetragen:
++
+[source,xml]
+----
+<dependency>
+    <groupId>org.bytedream</groupId>
+    <artifactId>untis4j</artifactId>
+    <version>1.0.0</version>
+    <scope>system</scope>
+    <systemPath>${pom.basedir}/lib/untis4j-1.3.0-withDependencies.jar.jar</systemPath>
+</dependency>
+----
+
+=== Service Klasse erstellen
+
+Zuerst werden der Server und der Schulname in die application.properties eingetragen:
+
+_src/main/resources/application.properties_
+[source, properties]
+----
+auth.school.name=htbla linz leonding
+auth.untis.server=mese.webuntis.com
+----
+
+_at.htl.service/WebUntisService.java_
+[source, java]
+----
+package at.htl.service;
+
+import org.bytedream.untis4j.Session;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import javax.enterprise.context.ApplicationScoped;
+import java.io.IOException;
+
+@ApplicationScoped
+public class WebUntisService {
+
+    @ConfigProperty(name = "auth.school.name")<1>
+    String schoolName;
+
+    @ConfigProperty(name = "auth.untis.server")
+    String serverName;
+
+    public String authenticateUser(String userName, String password) {<2>
+        try {
+            Session session = Session.login(
+                    userName,
+                    password,
+                    this.serverName,
+                    this.schoolName.replace(" ", "%20"));<2>
+
+            if (session != null) {
+                var result = session.getTeachers().searchByName(userName);<3>
+
+                session.logout();
+
+                return result.stream().findFirst().get().toString();
+            } else {
+                System.out.println("Login failed");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return "Unknown error";
+    }
+}
+----
+<1> Daten aus den application.properties rauslesen.
+<2> User und Passwort werden mithilfe des Loginformulars eingelesen.
+<3> Leerzeichen müssen mit %20 ersetzt werden.
+<4> Zum Testen werden einige Daten des Users geladen.
+
+== Endpoint erstellen
+
+_at/htl/boundary/WebUntisResource.java_
+[source, java]
+----
+package at.htl.boundary;
+
+import at.htl.service.WebUntisService;
+
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+
+@Path("/api/untis")
+public class WebUntisResource {
+    @Inject
+    WebUntisService webUntisService;
+
+    @POST
+    @Path("auth")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response authenticateUser(@FormParam("userName") String userName, @FormParam("password") String password) {
+        return Response.ok(webUntisService.authenticateUser(userName, password)).build();
+    }
+}
+----
+
+== Loginformular erstellen
+
+.Loginformular
+[%collapsible%open]
+====
+[source, html]
+----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebUntis Authentication</title>
+    <link crossorigin="anonymous" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</head>
+<body>
+
+<div>
+    <nav class="p-1" style="background-color: #0C242C">
+        <div class="nav-wrapper">
+            <a class="brand-logo">Login</a>
+        </div>
+    </nav>
+</div>
+
+<form action="api/untis/auth" method="post">
+    <div class="container mt-1">
+        <label><b>Username</b></label>
+        <input type="text" placeholder="Enter Username" name="userName" required>
+
+        <label><b>Password</b></label>
+        <input type="password" placeholder="Enter Password" name="password" required>
+
+        <button class="btn waves-effect waves-light" name="action" type="submit">
+            Anmelden
+        </button>
+    </div>
+</form>
+</body>
+</html>
+----
+====
+
+== Endpoint testen
+
+.Auf _localhost:8080_ den Usernamen und das Passwort eingeben
+[%collapsible%open]
+====
+image::image-2022-02-01-12-52-46-260.png[width=600]
+====
+
+Stimmen die Eingabedaten werden ein paar Daten des Users angezeigt:
+
+[source, json]
+----
+{"name":"NNRADIO","fullName":"Radio Leonding","id":321,"isActive":true,"title":"","longName":"Radio Leonding","foreName":""}
+----
+
+== Links
+
+https://github.com/ByteDream/untis4j[Untis4J]
+
+https://api.webuntis.dk/api/docs[Webuntis API]
